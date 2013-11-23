@@ -38,6 +38,8 @@
 #include <OGRE/OgreSceneNode.h>
 #include <OGRE/OgreTextureManager.h>
 #include <OGRE/OgreViewport.h>
+#include <OGRE/OgreMovablePlane.h>
+#include <OGRE/OgreEntity.h>
 
 #include <tf/transform_listener.h>
 
@@ -147,8 +149,10 @@ void CameraDisplay::onInitialize()
     ss << "CameraDisplayObject" << count++;
 
     //background rectangle
-    bg_screen_rect_ = new Ogre::Rectangle2D(true);
-    bg_screen_rect_->setCorners(-1.0f, 1.0f, 1.0f, -1.0f);
+    bg_screen_rect_ = scene_manager_->createEntity(ss.str()+"BgPlaneEntity", Ogre::SceneManager::PT_PLANE);
+
+    //bg_screen_rect_ = new Ogre::MovablePlane(Ogre::Vector3(1,0,0),1.0);
+    //bg_screen_rect_->setCorners(-1.0f, 1.0f, 1.0f, -1.0f);
 
     ss << "Material";
     bg_material_ = Ogre::MaterialManager::getSingleton().create( ss.str(), Ogre::ResourceGroupManager::DEFAULT_RESOURCE_GROUP_NAME );
@@ -160,7 +164,7 @@ void CameraDisplay::onInitialize()
     bg_material_->getTechnique(0)->setLightingEnabled(false);
     Ogre::TextureUnitState* tu = bg_material_->getTechnique(0)->getPass(0)->createTextureUnitState();
     tu->setTextureName(texture_.getTexture()->getName());
-    tu->setTextureFiltering( Ogre::TFO_NONE );
+    tu->setTextureFiltering( Ogre::TFO_BILINEAR );
     tu->setAlphaOperation( Ogre::LBX_SOURCE1, Ogre::LBS_MANUAL, Ogre::LBS_CURRENT, 0.0 );
 
     bg_material_->setCullingMode(Ogre::CULL_NONE);
@@ -170,8 +174,8 @@ void CameraDisplay::onInitialize()
     aabInf.setInfinite();
 
     bg_screen_rect_->setRenderQueueGroup(Ogre::RENDER_QUEUE_BACKGROUND);
-    bg_screen_rect_->setBoundingBox(aabInf);
-    bg_screen_rect_->setMaterial(bg_material_->getName());
+    //bg_screen_rect_->setBoundingBox(aabInf);
+    bg_screen_rect_->setMaterialName(bg_material_->getName());
 
     bg_scene_node_->attachObject(bg_screen_rect_);
     bg_scene_node_->setVisible(false);
@@ -227,6 +231,9 @@ void CameraDisplay::preRenderTargetUpdate(const Ogre::RenderTargetEvent& evt)
   QString image_position = image_position_property_->getString();
   bg_scene_node_->setVisible( caminfo_ok_ && (image_position == BACKGROUND || image_position == BOTH) );
   fg_scene_node_->setVisible( caminfo_ok_ && (image_position == OVERLAY || image_position == BOTH) );
+
+  Ogre::Vector3 pos = evt.source->getViewport(0)->getCamera()->getDerivedPosition();
+  scene_node_->setPosition(pos);
 
   // set view flags on all displays
   visibility_property_->update();
@@ -292,6 +299,7 @@ void CameraDisplay::updateAlpha()
   {
     Ogre::TextureUnitState* tex_unit = pass->getTextureUnitState( 0 );
     tex_unit->setAlphaOperation( Ogre::LBX_MODULATE, Ogre::LBS_MANUAL, Ogre::LBS_CURRENT, alpha );
+    tex_unit->setTextureFiltering( Ogre::TFO_BILINEAR );
   }
   else
   {
@@ -351,6 +359,8 @@ void CameraDisplay::update( float wall_dt, float ros_dt )
 
 bool CameraDisplay::updateCamera()
 {
+	if ( !scene_node_ ) return false;
+
   sensor_msgs::CameraInfo::ConstPtr info;
   sensor_msgs::Image::ConstPtr image;
   {
@@ -460,7 +470,7 @@ bool CameraDisplay::updateCamera()
   double cx = info->P[2];
   double cy = info->P[6];
 
-  double far_plane = 100;
+  double far_plane = 10000;
   double near_plane = 0.01;
 
   Ogre::Matrix4 proj_matrix;
@@ -481,6 +491,18 @@ bool CameraDisplay::updateCamera()
 
   setStatus( StatusProperty::Ok, "Camera Info", "OK" );
 
+  scene_node_->setPosition( position );
+  scene_node_->setOrientation( orientation );
+
+  //bg_scene_node_->setInheritScale(true);
+  scene_node_->setScale(1000,1000,1000);
+
+  //bg_scene_node_->setScale( 0.005*img_width, 0.005*img_height, 1 );
+  //bg_scene_node_->setPosition( (img_width/2.0)-cx, (img_height/2.0)-cy, -fx );
+  bg_scene_node_->setScale( 0.01 / (2.0 * fx/img_width), 0.01 / (2.0 * fy/img_height), 1 );
+  bg_scene_node_->setPosition( 2.0 * (0.5 - cx/img_width), 2.0 * (cy/img_height - 0.5), -1.0 );
+  //bg_scene_node_->setPosition( 0, 0, -fx );
+
 #if 0
   static Axes* debug_axes = new Axes(scene_manager_, 0, 0.2, 0.01);
   debug_axes->setPosition(position);
@@ -488,12 +510,12 @@ bool CameraDisplay::updateCamera()
 #endif
 
   //adjust the image rectangles to fit the zoom & aspect ratio
-  bg_screen_rect_->setCorners( -1.0f*zoom_x, 1.0f*zoom_y, 1.0f*zoom_x, -1.0f*zoom_y );
+  //bg_screen_rect_->setCorners( -1.0f*zoom_x, 1.0f*zoom_y, 1.0f*zoom_x, -1.0f*zoom_y );
   fg_screen_rect_->setCorners( -1.0f*zoom_x, 1.0f*zoom_y, 1.0f*zoom_x, -1.0f*zoom_y );
 
   Ogre::AxisAlignedBox aabInf;
   aabInf.setInfinite();
-  bg_screen_rect_->setBoundingBox( aabInf );
+  //bg_screen_rect_->setBoundingBox( aabInf );
   fg_screen_rect_->setBoundingBox( aabInf );
 
   setStatus( StatusProperty::Ok, "Time", "ok" );

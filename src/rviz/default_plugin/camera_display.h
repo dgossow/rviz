@@ -52,6 +52,7 @@ class SceneNode;
 class ManualObject;
 class Rectangle2D;
 class Camera;
+class Entity;
 }
 
 namespace rviz
@@ -89,11 +90,11 @@ public:
   static const QString OVERLAY;
   static const QString BOTH;
 
-protected:
   // overrides from Display
   virtual void onEnable();
   virtual void onDisable();
 
+protected:
   ROSImageTexture texture_;
   RenderPanel* render_panel_;
 
@@ -118,7 +119,7 @@ private:
   Ogre::SceneNode* bg_scene_node_;
   Ogre::SceneNode* fg_scene_node_;
 
-  Ogre::Rectangle2D* bg_screen_rect_;
+  Ogre::Entity* bg_screen_rect_;
   Ogre::MaterialPtr bg_material_;
 
   Ogre::Rectangle2D* fg_screen_rect_;
@@ -142,6 +143,8 @@ private:
   bool force_render_;
 
   uint32_t vis_bit_;
+
+  Ogre::Quaternion orientation_;
 };
 
 } // namespace rviz
